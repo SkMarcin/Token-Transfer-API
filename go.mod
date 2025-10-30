@@ -1,4 +1,4 @@
-module Token_Transfer_API
+module github.com/SkMarcin/Token-Transfer-API
 
 go 1.25.3
 
