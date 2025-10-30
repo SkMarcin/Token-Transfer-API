@@ -1,13 +1,20 @@
 package database
 
 import (
+	"log"
 	"os"
 	"testing"
 
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestConnectSuccess(t *testing.T) {
+	err := godotenv.Load("../../.env")
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
 	a := assert.New(t)
 
 	db, err := Connect()
@@ -29,6 +36,11 @@ func TestConnectSuccess(t *testing.T) {
 }
 
 func TestConnectFailure(t *testing.T) {
+	err := godotenv.Load("../../.env")
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
 	a := assert.New(t)
 
 	port := os.Getenv("DB_PORT")
