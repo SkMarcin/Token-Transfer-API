@@ -19,3 +19,26 @@ func RunMigrations(db *gorm.DB) error {
 
 	return nil
 }
+
+func SeedInitialBalance(db *gorm.DB) error {
+	log.Println("Seeding initial wallet balance...")
+
+	initialWallet := core.Wallet{
+		Address: "0x0000000000000000000000000000000000000000",
+		Balance: 1000000,
+	}
+
+	result := db.FirstOrCreate(&initialWallet, core.Wallet{Address: initialWallet.Address})
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to seed initial wallet: %w", result.Error)
+	}
+
+	if result.RowsAffected > 0 {
+		log.Printf("Seeded initial wallet: %s with balance %d", initialWallet.Address, initialWallet.Balance)
+	} else {
+		log.Println("Initial wallet already exists, skipping seed.")
+	}
+
+	return nil
+}
