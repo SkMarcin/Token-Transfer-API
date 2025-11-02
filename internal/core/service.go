@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type WalletService struct {
@@ -39,8 +40,17 @@ func (s *WalletService) Transfer(fromAddr string, toAddr string, amount int64) (
 	}
 
 	// 3. Credit recipient
-	err = s.DB.Model(&Wallet{}).Where("address = ?", toAddr).
-		Update("balance", gorm.Expr("balance + ?", amount)).Error
+	recipient := Wallet{
+		Address: toAddr,
+		Balance: amount,
+	}
+
+	err = s.DB.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "address"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"balance": gorm.Expr("wallets.balance + ?", amount),
+		}),
+	}).Create(&recipient).Error
 
 	if err != nil {
 		return 0, fmt.Errorf("failed to credit recipient: %w", err)
