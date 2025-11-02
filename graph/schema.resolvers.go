@@ -6,17 +6,22 @@ package graph
 
 import (
 	"context"
-	"fmt"
 )
 
 // Transfer is the resolver for the transfer field.
 func (r *mutationResolver) Transfer(ctx context.Context, fromAddress string, toAddress string, amount int32) (int32, error) {
-	panic(fmt.Errorf("not implemented: Transfer - transfer"))
+	newBalance, err := r.Resolver.WalletService.Transfer(fromAddress, toAddress, int64(amount))
+
+	if err != nil {
+		return 0, err
+	}
+
+	return int32(newBalance), nil
 }
 
 // Status is the resolver for the status field.
 func (r *queryResolver) Status(ctx context.Context) (string, error) {
-	panic(fmt.Errorf("not implemented: Status - status"))
+	return "Operational", nil
 }
 
 // Mutation returns MutationResolver implementation.
