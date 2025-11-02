@@ -7,18 +7,16 @@ package graph
 import (
 	"context"
 	"fmt"
-
-	"github.com/SkMarcin/Token-Transfer-API/graph/model"
 )
 
-// CreateTodo is the resolver for the createTodo field.
-func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: CreateTodo - createTodo"))
+// Transfer is the resolver for the transfer field.
+func (r *mutationResolver) Transfer(ctx context.Context, fromAddress string, toAddress string, amount int32) (int32, error) {
+	panic(fmt.Errorf("not implemented: Transfer - transfer"))
 }
 
-// Todos is the resolver for the todos field.
-func (r *queryResolver) Todos(ctx context.Context) ([]*model.Todo, error) {
-	panic(fmt.Errorf("not implemented: Todos - todos"))
+// Status is the resolver for the status field.
+func (r *queryResolver) Status(ctx context.Context) (string, error) {
+	panic(fmt.Errorf("not implemented: Status - status"))
 }
 
 // Mutation returns MutationResolver implementation.
