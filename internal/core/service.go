@@ -16,6 +16,19 @@ func NewWalletService(db *gorm.DB) *WalletService {
 	return &WalletService{DB: db}
 }
 
+func (s *WalletService) GetWalletByAddress(address string) (*Wallet, error) {
+	var wallet Wallet
+	result := s.DB.Where("address = ?", address).First(&wallet)
+
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &wallet, nil
+}
+
 func (s *WalletService) Transfer(fromAddr string, toAddr string, amount int64) (int64, error) {
 	// 1. Check sender balance
 	var sender Wallet
