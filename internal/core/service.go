@@ -3,9 +3,16 @@ package core
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+)
+
+var (
+	ErrInsufficientBalance = errors.New("insufficient balance")
+	TestBarrier            *sync.WaitGroup
+	TestRelease            chan struct{}
 )
 
 type WalletService struct {
@@ -40,8 +47,14 @@ func (s *WalletService) Transfer(fromAddr string, toAddr string, amount int64) (
 		return 0, fmt.Errorf("error retrieving sender: %w", err)
 	}
 
+	// Signal balance check done and wait for other threads
+	if TestBarrier != nil {
+		TestBarrier.Done()
+		<-TestRelease
+	}
+
 	if sender.Balance < amount {
-		return 0, errors.New("insufficient balance")
+		return 0, ErrInsufficientBalance
 	}
 
 	// 2. Debit sender
