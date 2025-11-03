@@ -37,6 +37,20 @@ func (s *WalletService) GetWalletByAddress(address string) (*Wallet, error) {
 }
 
 func (s *WalletService) Transfer(fromAddr string, toAddr string, amount int64) (int64, error) {
+	// 0. Validate transfer
+	if err := ValidateTransferAmount(amount); err != nil {
+		return 0, err
+	}
+	if err := ValidateAddress(fromAddr); err != nil {
+		return 0, fmt.Errorf("invalid sender address: %w", err)
+	}
+	if err := ValidateAddress(toAddr); err != nil {
+		return 0, fmt.Errorf("invalid recipient address: %w", err)
+	}
+	if fromAddr == toAddr {
+		return 0, errors.New("cannot transfer tokens to the same address")
+	}
+
 	// 1. Check sender balance
 	var sender Wallet
 	err := s.DB.Where("address = ?", fromAddr).First(&sender).Error
