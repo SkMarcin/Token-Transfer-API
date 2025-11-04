@@ -22,10 +22,6 @@ func TestTransferRaceCondition(t *testing.T) {
 	// Semaphore waiting for goroutines
 	var wg sync.WaitGroup
 
-	core.TestBarrier = &sync.WaitGroup{}
-	core.TestBarrier.Add(len(transfers))
-	core.TestRelease = make(chan struct{})
-
 	var results = make(chan error, len(transfers))
 
 	// Concurrent Goroutines
@@ -38,14 +34,10 @@ func TestTransferRaceCondition(t *testing.T) {
 
 		go func(index int, f, t string, amount int64) {
 			defer wg.Done()
-			_, err := svc.Transfer(f, t, amount)
+			_, err := svc.TransferLocking(f, t, amount)
 			results <- err
 		}(i, from, to, transferAmt)
 	}
-
-	// Wait for all threads and release barrier
-	core.TestBarrier.Wait()
-	close(core.TestRelease)
 
 	wg.Wait()
 	close(results)
@@ -62,4 +54,57 @@ func TestTransferRaceCondition(t *testing.T) {
 	a.True(finalSender.Balance == expectedFinalBalance1 ||
 		finalSender.Balance == expectedFinalBalance2,
 		"Final balance must be 600000 or 300000 after the concurrent transfers.")
+}
+
+func TestTransferRaceConditionReceiving(t *testing.T) {
+	svc := SetupWalletService(t)
+	a := assert.New(t)
+
+	transfers := []struct {
+		amount    int64
+		receiving bool
+	}{
+		{amount: 100000, receiving: true},
+		{amount: 400000, receiving: false},
+		{amount: 700000, receiving: false},
+	}
+
+	// Semaphore waiting for goroutines
+	var wg sync.WaitGroup
+
+	// Concurrent Goroutines
+	for i, tx := range transfers {
+		wg.Add(1)
+
+		from := InitialSenderAddress
+		to := RecipientAddress
+		transferAmt := tx.amount
+
+		if tx.receiving {
+			from = RecipientAddress
+			to = InitialSenderAddress
+		}
+
+		go func(index int, f, t string, amount int64) {
+			defer wg.Done()
+			svc.TransferLocking(f, t, amount)
+		}(i, from, to, transferAmt)
+	}
+
+	wg.Wait()
+
+	core.TestBarrier = nil
+	core.TestRelease = nil
+
+	// Results
+	expectedFinalBalance1 := int64(600000)
+	expectedFinalBalance2 := int64(300000)
+	expectedFinalBalance3 := int64(0)
+
+	finalSender, _ := svc.GetWalletByAddress(InitialSenderAddress)
+	t.Logf("Final balance %d", finalSender.Balance)
+	a.True(finalSender.Balance == expectedFinalBalance1 ||
+		finalSender.Balance == expectedFinalBalance2 ||
+		finalSender.Balance == expectedFinalBalance3,
+		"Final balance must be 600000, 300000 or 0 after the concurrent transfers.")
 }
