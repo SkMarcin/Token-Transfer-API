@@ -54,7 +54,7 @@ func TestSequentialTransfers(t *testing.T) {
 	a.Equal(int64(1000000-firstAmount), sender1.Balance, "Sender balance after first transfer is incorrect")
 
 	// Transfer to existing wallet
-	newBalance, err := svc.TransferLocking(InitialSenderAddress, RecipientAddress, secondAmount)
+	newBalance, err := svc.Transfer(InitialSenderAddress, RecipientAddress, secondAmount)
 	a.NoError(err, "Second transfer should succeed")
 
 	expectedFinalSenderBalance := int64(1000000 - firstAmount - secondAmount)
@@ -74,7 +74,7 @@ func TestTransferInsufficientBalance(t *testing.T) {
 	const transferAmount = 1000001
 
 	// Attempt transfer
-	newBalance, err := svc.TransferLocking(InitialSenderAddress, RecipientAddress, transferAmount)
+	newBalance, err := svc.Transfer(InitialSenderAddress, RecipientAddress, transferAmount)
 
 	a.Error(err)
 	a.Contains(err.Error(), "insufficient balance", "Should return 'insufficient balance' error")

@@ -35,7 +35,7 @@ func TestTransferRaceCondition(t *testing.T) {
 
 		go func(index int, f, t string, amount int64) {
 			defer wg.Done()
-			_, err := svc.TransferLocking(f, t, amount)
+			_, err := svc.Transfer(f, t, amount)
 			results <- err
 		}(i, from, to, transferAmt)
 	}
@@ -90,7 +90,7 @@ func TestTransferRaceConditionReceiving(t *testing.T) {
 
 		go func(index int, f, t string, amount int64) {
 			defer wg.Done()
-			svc.TransferLocking(f, t, amount)
+			svc.Transfer(f, t, amount)
 		}(i, from, to, transferAmt)
 	}
 
