@@ -150,8 +150,18 @@ func (s *WalletService) TransferLocking(fromAddr string, toAddr string, amount i
 		}
 
 		// Credit recipient
-		err = tx.Model(&Wallet{}).Where("address = ?", toAddr).
-			Update("balance", gorm.Expr("balance + ?", amount)).Error
+		recipient := Wallet{
+			Address: toAddr,
+			Balance: amount,
+		}
+
+		err = tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "address"}},
+			DoUpdates: clause.Assignments(map[string]interface{}{
+				"balance": gorm.Expr("wallets.balance + ?", amount),
+			}),
+		}).Create(&recipient).Error
+
 		if err != nil {
 			return fmt.Errorf("failed to credit recipient: %w", err)
 		}

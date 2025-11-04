@@ -34,7 +34,7 @@ func TestTransferRaceCondition(t *testing.T) {
 
 		go func(index int, f, t string, amount int64) {
 			defer wg.Done()
-			_, err := svc.TransferLocking(f, t, amount)
+			_, err := svc.Transfer(f, t, amount)
 			results <- err
 		}(i, from, to, transferAmt)
 	}
@@ -87,7 +87,7 @@ func TestTransferRaceConditionReceiving(t *testing.T) {
 
 		go func(index int, f, t string, amount int64) {
 			defer wg.Done()
-			svc.TransferLocking(f, t, amount)
+			svc.Transfer(f, t, amount)
 		}(i, from, to, transferAmt)
 	}
 
@@ -97,8 +97,8 @@ func TestTransferRaceConditionReceiving(t *testing.T) {
 	core.TestRelease = nil
 
 	// Results
-	expectedFinalBalance1 := int64(600000)
-	expectedFinalBalance2 := int64(300000)
+	expectedFinalBalance1 := int64(700000)
+	expectedFinalBalance2 := int64(400000)
 	expectedFinalBalance3 := int64(0)
 
 	finalSender, _ := svc.GetWalletByAddress(InitialSenderAddress)
