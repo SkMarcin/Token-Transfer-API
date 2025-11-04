@@ -1,0 +1,12 @@
+
+type Mutation {
+  transfer(
+    fromAddress: String!
+    toAddress: String!
+    amount: Int!
+  ): Int!
+}
+
+type Query {
+  status: String!
+}
