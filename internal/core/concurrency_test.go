@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	core "github.com/SkMarcin/Token-Transfer-API/internal/core"
+	db "github.com/SkMarcin/Token-Transfer-API/internal/database"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,7 +35,7 @@ func TestTransferRaceCondition(t *testing.T) {
 
 		go func(index int, f, t string, amount int64) {
 			defer wg.Done()
-			_, err := svc.Transfer(f, t, amount)
+			_, err := svc.TransferLocking(f, t, amount)
 			results <- err
 		}(i, from, to, transferAmt)
 	}
@@ -58,6 +59,8 @@ func TestTransferRaceCondition(t *testing.T) {
 
 func TestTransferRaceConditionReceiving(t *testing.T) {
 	svc := SetupWalletService(t)
+	db.SeedSecondWalletTest()
+
 	a := assert.New(t)
 
 	transfers := []struct {
@@ -81,13 +84,13 @@ func TestTransferRaceConditionReceiving(t *testing.T) {
 		transferAmt := tx.amount
 
 		if tx.receiving {
-			from = RecipientAddress
+			from = "0x2222222222222222222222222222222222222222"
 			to = InitialSenderAddress
 		}
 
 		go func(index int, f, t string, amount int64) {
 			defer wg.Done()
-			svc.Transfer(f, t, amount)
+			svc.TransferLocking(f, t, amount)
 		}(i, from, to, transferAmt)
 	}
 
@@ -106,5 +109,5 @@ func TestTransferRaceConditionReceiving(t *testing.T) {
 	a.True(finalSender.Balance == expectedFinalBalance1 ||
 		finalSender.Balance == expectedFinalBalance2 ||
 		finalSender.Balance == expectedFinalBalance3,
-		"Final balance must be 600000, 300000 or 0 after the concurrent transfers.")
+		"Final balance must be 700000, 400000 or 0 after the concurrent transfers.")
 }
