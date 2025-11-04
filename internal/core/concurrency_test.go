@@ -4,7 +4,6 @@ import (
 	"sync"
 	"testing"
 
-	core "github.com/SkMarcin/Token-Transfer-API/internal/core"
 	db "github.com/SkMarcin/Token-Transfer-API/internal/database"
 	"github.com/stretchr/testify/assert"
 )
@@ -23,8 +22,6 @@ func TestTransferRaceCondition(t *testing.T) {
 	// Semaphore waiting for goroutines
 	var wg sync.WaitGroup
 
-	var results = make(chan error, len(transfers))
-
 	// Concurrent Goroutines
 	for i, tx := range transfers {
 		wg.Add(1)
@@ -35,16 +32,11 @@ func TestTransferRaceCondition(t *testing.T) {
 
 		go func(index int, f, t string, amount int64) {
 			defer wg.Done()
-			_, err := svc.Transfer(f, t, amount)
-			results <- err
+			svc.Transfer(f, t, amount)
 		}(i, from, to, transferAmt)
 	}
 
 	wg.Wait()
-	close(results)
-
-	core.TestBarrier = nil
-	core.TestRelease = nil
 
 	// Results
 	expectedFinalBalance1 := int64(600000)
@@ -95,9 +87,6 @@ func TestTransferRaceConditionReceiving(t *testing.T) {
 	}
 
 	wg.Wait()
-
-	core.TestBarrier = nil
-	core.TestRelease = nil
 
 	// Results
 	expectedFinalBalance1 := int64(700000)
