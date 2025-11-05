@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/SkMarcin/Token-Transfer-API/internal/core"
-	db "github.com/SkMarcin/Token-Transfer-API/internal/database"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,8 +16,8 @@ func TestTransferRaceCondition(t *testing.T) {
 	transfers := []struct {
 		amount int64
 	}{
-		{amount: 400000},
-		{amount: 700000},
+		{amount: 4},
+		{amount: 7},
 	}
 
 	// Semaphore waiting for goroutines
@@ -41,19 +40,18 @@ func TestTransferRaceCondition(t *testing.T) {
 	wg.Wait()
 
 	// Results
-	expectedFinalBalance1 := int64(600000)
-	expectedFinalBalance2 := int64(300000)
+	expectedFinalBalance1 := int64(6)
+	expectedFinalBalance2 := int64(3)
 
 	finalSender, _ := svc.GetWalletByAddress(InitialSenderAddress)
 	t.Logf("Final balance %d", finalSender.Balance)
 	a.True(finalSender.Balance == expectedFinalBalance1 ||
 		finalSender.Balance == expectedFinalBalance2,
-		"Final balance must be 600000 or 300000 after the concurrent transfers.")
+		"Final balance must be 6 or 3 after the concurrent transfers.")
 }
 
 func TestTransferRaceConditionReceiving(t *testing.T) {
 	svc := SetupWalletService(t)
-	db.SeedSecondWalletTest()
 
 	a := assert.New(t)
 
@@ -61,9 +59,9 @@ func TestTransferRaceConditionReceiving(t *testing.T) {
 		amount    int64
 		receiving bool
 	}{
-		{amount: 100000, receiving: true},
-		{amount: 400000, receiving: false},
-		{amount: 700000, receiving: false},
+		{amount: 1, receiving: true},
+		{amount: 4, receiving: false},
+		{amount: 7, receiving: false},
 	}
 
 	// Semaphore waiting for goroutines
@@ -114,14 +112,14 @@ func TestTransferRaceConditionReceiving(t *testing.T) {
 	finalSender, _ := svc.GetWalletByAddress(InitialSenderAddress)
 	t.Logf("Final balance %d", finalSender.Balance)
 	switch finalSender.Balance {
-	case 700000, 400000:
-		a.Equal(2, successCount, "If balance is 400000 or 700000, exactly two transactions must have succeeded.")
-		a.Equal(1, insufficientErrorCount, "If balance is 400000 or 700000, exactly one transaction must have failed due to insufficient funds.")
+	case 7, 4:
+		a.Equal(2, successCount, "If balance is 4 or 7, exactly two transactions must have succeeded.")
+		a.Equal(1, insufficientErrorCount, "If balance is 4 or 7, exactly one transaction must have failed due to insufficient funds.")
 	case 0:
 		a.Equal(3, successCount, "If balance is 0, all three transactions must have succeeded.")
 		a.Equal(0, insufficientErrorCount, "If balance is 0, zero transactions must have failed due to insufficient funds.")
 	default:
 		a.Failf("Final balance is invalid",
-			"Balance was %d. Expected 0, 400000, or 700000. This indicates an integrity failure.", finalSender.Balance)
+			"Balance was %d. Expected 0, 4, or 7. This indicates an integrity failure.", finalSender.Balance)
 	}
 }

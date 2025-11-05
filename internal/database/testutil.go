@@ -12,24 +12,30 @@ import (
 
 var testDB *gorm.DB
 
-func SeedSecondWalletTest() error {
-	log.Println("Seeding second wallet balance...")
-
-	secondWallet := core.Wallet{
-		Address: "0x2222222222222222222222222222222222222222",
-		Balance: 1000000,
+func SeedTestWallets(DB *gorm.DB) error {
+	walletsToSeed := []core.Wallet{
+		{
+			Address: "0x0000000000000000000000000000000000000000",
+			Balance: 10,
+		},
+		{
+			Address: "0x2222222222222222222222222222222222222222",
+			Balance: 10,
+		},
 	}
 
-	result := testDB.FirstOrCreate(&secondWallet, core.Wallet{Address: secondWallet.Address})
+	for i, wallet := range walletsToSeed {
+		result := DB.Where("address = ?", wallet.Address).Assign("balance", wallet.Balance).FirstOrCreate(&wallet)
 
-	if result.Error != nil {
-		return fmt.Errorf("failed to seed second wallet: %w", result.Error)
-	}
+		if result.Error != nil {
+			return fmt.Errorf("failed to seed wallet %d (%s): %w", i+1, wallet.Address, result.Error)
+		}
 
-	if result.RowsAffected > 0 {
-		log.Printf("Seeded second wallet: %s with balance %d", secondWallet.Address, secondWallet.Balance)
-	} else {
-		log.Println("Second wallet already exists, skipping seed.")
+		if result.RowsAffected > 0 {
+			log.Printf("Seeded wallet %d: %s with balance %d", i+1, wallet.Address, wallet.Balance)
+		} else {
+			log.Printf("Wallet %d (%s) already exists, balance reset to %d.", i+1, wallet.Address, wallet.Balance)
+		}
 	}
 
 	return nil
