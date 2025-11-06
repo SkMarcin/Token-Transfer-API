@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/SkMarcin/Token-Transfer-API/internal/models"
 	"gorm.io/gorm"
@@ -49,17 +50,32 @@ func (s *WalletService) Transfer(fromAddr string, toAddr string, amount int64) (
 		return 0, errors.New("cannot transfer tokens to the same address")
 	}
 
+	// Sort addresses
 	var finalSenderBalance int64
+	addresses := []string{fromAddr, toAddr}
+	sort.Strings(addresses)
+
+	lock1 := addresses[0]
+	lock2 := addresses[1]
 
 	// Start a transaction
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 
-		var sender models.Wallet
-		var recipient models.Wallet
+		var (
+			wallet1 models.Wallet
+			wallet2 models.Wallet
+			sender  models.Wallet
+		)
 
-		// Lock rows alphabetically
-		tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("address = ?", fromAddr).First(&sender)
-		tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("address = ?", toAddr).First(&recipient)
+		// Lock rows in sorted order
+		tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("address = ?", lock1).First(&wallet1)
+		tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("address = ?", lock2).First(&wallet2)
+
+		if fromAddr == wallet1.Address {
+			sender = wallet1
+		} else {
+			sender = wallet2
+		}
 
 		// Balance check
 		if sender.Balance < amount {
@@ -74,7 +90,7 @@ func (s *WalletService) Transfer(fromAddr string, toAddr string, amount int64) (
 		}
 
 		// Credit recipient
-		recipient = models.Wallet{
+		recipient := models.Wallet{
 			Address: toAddr,
 			Balance: amount,
 		}
