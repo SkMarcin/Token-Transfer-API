@@ -1,11 +1,10 @@
-package core_test
+package core
 
 import (
 	"errors"
 	"sync"
 	"testing"
 
-	"github.com/SkMarcin/Token-Transfer-API/internal/core"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -100,7 +99,7 @@ func TestTransferRaceConditionReceiving(t *testing.T) {
 		if err == nil {
 			successCount++
 		} else {
-			if errors.Is(err, core.ErrInsufficientBalance) {
+			if errors.Is(err, ErrInsufficientBalance) {
 				insufficientErrorCount++
 			} else {
 				t.Errorf("Received unexpected error: %v", err)

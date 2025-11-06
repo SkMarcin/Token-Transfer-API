@@ -1,9 +1,8 @@
-package core_test
+package core
 
 import (
 	"testing"
 
-	"github.com/SkMarcin/Token-Transfer-API/internal/core"
 	"github.com/SkMarcin/Token-Transfer-API/internal/database"
 	"github.com/stretchr/testify/assert"
 )
@@ -13,13 +12,13 @@ var (
 	RecipientAddress     = "0x1111111111111111111111111111111111111111"
 )
 
-func SetupWalletService(t *testing.T) *core.WalletService {
+func SetupWalletService(t *testing.T) *WalletService {
 	db := database.SetupTestDB(t)
 	database.ClearTables(db)
 	if err := database.SeedTestWallets(db); err != nil {
 		t.Fatalf("Failed to re-seed data: %v", err)
 	}
-	return core.NewWalletService(db)
+	return NewWalletService(db)
 }
 
 func TestTransferSuccess(t *testing.T) {

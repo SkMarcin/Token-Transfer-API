@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/SkMarcin/Token-Transfer-API/internal/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -23,8 +24,8 @@ func NewWalletService(db *gorm.DB) *WalletService {
 	return &WalletService{DB: db}
 }
 
-func (s *WalletService) GetWalletByAddress(address string) (*Wallet, error) {
-	var wallet Wallet
+func (s *WalletService) GetWalletByAddress(address string) (*models.Wallet, error) {
+	var wallet models.Wallet
 	result := s.DB.Where("address = ?", address).First(&wallet)
 
 	if result.Error != nil {
@@ -56,17 +57,12 @@ func (s *WalletService) Transfer(fromAddr string, toAddr string, amount int64) (
 	// Start a transaction
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 
-		// Lock sender row, retrieve balance
-		var sender Wallet
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("address = ?", fromAddr).
-			First(&sender).Error
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("sender wallet not found: %s", fromAddr)
-			}
-			return fmt.Errorf("error locking sender wallet: %w", err)
-		}
+		var sender models.Wallet
+		var recipient models.Wallet
+
+		// Lock rows alphabetically
+		tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("address = ?", fromAddr).First(&sender)
+		tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("address = ?", toAddr).First(&recipient)
 
 		// Balance check
 		if sender.Balance < amount {
@@ -74,14 +70,14 @@ func (s *WalletService) Transfer(fromAddr string, toAddr string, amount int64) (
 		}
 
 		// Debit sender
-		err = tx.Model(&Wallet{}).Where("address = ?", fromAddr).
+		err := tx.Model(&models.Wallet{}).Where("address = ?", fromAddr).
 			Update("balance", gorm.Expr("balance - ?", amount)).Error
 		if err != nil {
 			return fmt.Errorf("failed to debit sender: %w", err)
 		}
 
 		// Credit recipient
-		recipient := Wallet{
+		recipient = models.Wallet{
 			Address: toAddr,
 			Balance: amount,
 		}
@@ -98,7 +94,7 @@ func (s *WalletService) Transfer(fromAddr string, toAddr string, amount int64) (
 		}
 
 		// Get the new sender balance
-		var updatedSender Wallet
+		var updatedSender models.Wallet
 		err = tx.Where("address = ?", fromAddr).First(&updatedSender).Error
 		if err != nil {
 			return fmt.Errorf("failed to retrieve updated balance: %w", err)

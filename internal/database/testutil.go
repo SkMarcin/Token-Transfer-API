@@ -5,7 +5,7 @@ import (
 	"log"
 	"testing"
 
-	"github.com/SkMarcin/Token-Transfer-API/internal/core"
+	"github.com/SkMarcin/Token-Transfer-API/internal/models"
 	"github.com/joho/godotenv"
 	"gorm.io/gorm"
 )
@@ -13,7 +13,7 @@ import (
 var testDB *gorm.DB
 
 func SeedTestWallets(DB *gorm.DB) error {
-	walletsToSeed := []core.Wallet{
+	walletsToSeed := []models.Wallet{
 		{
 			Address: "0x0000000000000000000000000000000000000000",
 			Balance: 10,
