@@ -3,38 +3,22 @@ package core
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"sync"
+	"testing"
 
 	"github.com/SkMarcin/Token-Transfer-API/internal/models"
+	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 var (
-	ErrInsufficientBalance = errors.New("insufficient balance")
+	TestBarrier *sync.WaitGroup
+	TestRelease chan struct{}
 )
 
-type WalletService struct {
-	DB *gorm.DB
-}
-
-func NewWalletService(db *gorm.DB) *WalletService {
-	return &WalletService{DB: db}
-}
-
-func (s *WalletService) GetWalletByAddress(address string) (*models.Wallet, error) {
-	var wallet models.Wallet
-	result := s.DB.Where("address = ?", address).First(&wallet)
-
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return nil, nil
-		}
-		return nil, result.Error
-	}
-	return &wallet, nil
-}
-
-func (s *WalletService) Transfer(fromAddr string, toAddr string, amount int64) (int64, error) {
+func (s *WalletService) DeadlockTransfer(fromAddr string, toAddr string, amount int64) (int64, error) {
 	// Validate transfer
 	if err := ValidateTransferAmount(amount); err != nil {
 		return 0, err
@@ -57,8 +41,16 @@ func (s *WalletService) Transfer(fromAddr string, toAddr string, amount int64) (
 		var sender models.Wallet
 		var recipient models.Wallet
 
-		// Lock rows alphabetically
+		// Lock sender row
 		tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("address = ?", fromAddr).First(&sender)
+
+		// Wait for other transfer to cause deadlock
+		if TestBarrier != nil {
+			TestBarrier.Done()
+			<-TestRelease
+		}
+
+		// Lock recipient row
 		tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("address = ?", toAddr).First(&recipient)
 
 		// Balance check
@@ -106,4 +98,57 @@ func (s *WalletService) Transfer(fromAddr string, toAddr string, amount int64) (
 	}
 
 	return finalSenderBalance, nil
+}
+
+func TestDeadlockScenario(t *testing.T) {
+	svc := SetupWalletService(t)
+	a := assert.New(t)
+
+	fromAddr := InitialSenderAddress
+	toAddr := SecondarySenderAddress
+
+	transferAmount := int64(3)
+
+	var wg sync.WaitGroup
+
+	TestBarrier = &sync.WaitGroup{}
+	TestBarrier.Add(2)
+	TestRelease = make(chan struct{})
+
+	var results = make(chan error, 2)
+
+	// Transaction 1
+	wg.Go(func() {
+		_, err := svc.DeadlockTransfer(fromAddr, toAddr, transferAmount)
+		results <- err
+	})
+
+	// Transaction 2
+	wg.Go(func() {
+		_, err := svc.DeadlockTransfer(toAddr, fromAddr, transferAmount)
+		results <- err
+	})
+
+	TestBarrier.Wait()
+	close(TestRelease)
+
+	wg.Wait()
+	close(results)
+
+	TestBarrier = nil
+	TestRelease = nil
+
+	deadlockDetectedCount := 0
+
+	for err := range results {
+		if err != nil {
+			if strings.Contains(err.Error(), "transaction block") {
+				deadlockDetectedCount++
+			} else {
+				t.Logf("Received non-deadlock error: %v", err)
+			}
+		}
+	}
+
+	a.GreaterOrEqual(deadlockDetectedCount, 1, "Expected at least one transaction to fail with 'deadlock detected' error.")
 }
