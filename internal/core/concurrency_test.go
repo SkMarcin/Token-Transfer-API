@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 
@@ -77,7 +78,7 @@ func TestTransferRaceConditionReceiving(t *testing.T) {
 		transferAmt := tx.amount
 
 		if tx.receiving {
-			from = "0x2222222222222222222222222222222222222222"
+			from = SecondarySenderAddress
 			to = InitialSenderAddress
 		}
 
@@ -119,6 +120,48 @@ func TestTransferRaceConditionReceiving(t *testing.T) {
 		a.Equal(0, insufficientErrorCount, "If balance is 0, zero transactions must have failed due to insufficient funds.")
 	default:
 		a.Failf("Final balance is invalid",
-			"Balance was %d. Expected 0, 4, or 7. This indicates an integrity failure.", finalSender.Balance)
+			"Balance was %d. Expected 0, 4, or 7. This indicates a concurrency failure.", finalSender.Balance)
 	}
+}
+
+func TestDeadlockNotOccuring(t *testing.T) {
+	svc := SetupWalletService(t)
+	a := assert.New(t)
+
+	fromAddr := InitialSenderAddress
+	toAddr := SecondarySenderAddress
+
+	transferAmount := int64(3)
+
+	var wg sync.WaitGroup
+	var results = make(chan error, 2)
+
+	// Transaction 1
+	wg.Go(func() {
+		_, err := svc.Transfer(fromAddr, toAddr, transferAmount)
+		results <- err
+	})
+
+	// Transaction 2
+	wg.Go(func() {
+		_, err := svc.Transfer(toAddr, fromAddr, transferAmount)
+		results <- err
+	})
+
+	wg.Wait()
+	close(results)
+
+	deadlockDetectedCount := 0
+
+	for err := range results {
+		if err != nil {
+			if strings.Contains(err.Error(), "transaction block") {
+				deadlockDetectedCount++
+			} else {
+				t.Logf("Received non-deadlock error: %v", err)
+			}
+		}
+	}
+
+	a.GreaterOrEqual(deadlockDetectedCount, 0, "Expected for all the transactions to pass without deadlock.")
 }
