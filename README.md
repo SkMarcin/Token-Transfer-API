@@ -53,14 +53,28 @@ docker-compose up -d
 go test ./...
 ```
 
+### Files
+| File Name | Description |
+| :--- | :--- |
+| **database/connection_test.go** | Testing database connection. |
+| **database/testutil.go** | Helper functions for testing. |
+| **core/validation_test.go** | Tests of Transfer parameter validation functions. |
+| **core/transfer_test.go** | Tests of Transfer behavior in typical situations. |
+| **core/race_condition_test.go** | Test of race conditions causing unexpected behavior without locking. |
+| **core/deadlock_test.go** | Test of deadlock occuring without sorted locking and test of it not occuring after fix even with added delay. |
+| **core/concurrency_test.go** | Tests of expected Transfer behavior in concurrent situations including deadlock and race conditions. |
+
+
 ### Concurrency testing
-In the first implementation of Transfer, there was a possibility of race conditions occuring when two transfers from the same wallet were smaller than the balance separately but larger as a sum. This behavior can be observed in the branch **exp/concurrency-failed-test**, where balance can go into the negatives during a test utilizing sync.WaitGroup to cause a race condition.
+In the first implementation of Transfer, there was a possibility of race conditions occuring when two transfers from the same wallet were smaller than the balance separately but larger as a sum. This behavior can be observed in the file `race_condition_test.go`, where balance can go into the negatives during a test utilizing sync.WaitGroup to cause a race condition.
 
 Race conditions were eliminated by utilizing Pessimistic Locking during a transfer.
 
+### Deadlock testing
+Locking introduced a possibility of a deadlock occuring for multiple transfers as in file `deadlock_test.go`. This was solved by enforcing Deterministic Lock Ordering (in lexicographic address order) instead of sender -> recipient.
+
 
 ## GraphQL API Usage
-
 The API exposes GraphQL endpoints for requesting transfers between wallets.
 
 ### Running the API
