@@ -21,6 +21,8 @@ func RunMigrations(db *gorm.DB) error {
 }
 
 func SeedInitialBalance(db *gorm.DB) error {
+	ClearTables(db)
+
 	log.Println("Seeding initial wallet balance...")
 
 	initialWallet := models.Wallet{

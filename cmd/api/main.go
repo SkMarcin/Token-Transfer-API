@@ -37,10 +37,6 @@ func main() {
 		log.Fatalf("ERROR: Migration failed: %v", err)
 	}
 
-	if err := database.SeedInitialBalance(db); err != nil {
-		log.Fatalf("ERROR: Seeding failed: %v", err)
-	}
-
 	walletService := core.NewWalletService(db)
 
 	srv := handler.New(graph.NewExecutableSchema(

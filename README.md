@@ -78,9 +78,12 @@ Locking introduced a possibility of a deadlock occuring for multiple transfers a
 The API exposes GraphQL endpoints for requesting transfers between wallets.
 
 ### Running the API
+Setup will reset the database and seed the initial wallet to 1000000 tokens, this will not happen on normal server start. Note that tests will affect the database so it may be necessary to run setup after tests.
 
 ```bash
 docker-compose up -d
+
+go run ./cmd/setup/main.go
 go run ./cmd/api/main.go
 ```
 
