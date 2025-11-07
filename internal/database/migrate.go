@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/SkMarcin/Token-Transfer-API/internal/core"
+	"github.com/SkMarcin/Token-Transfer-API/internal/models"
 	"gorm.io/gorm"
 )
 
 func RunMigrations(db *gorm.DB) error {
 	log.Println("Running GORM migrations...")
 
-	err := db.AutoMigrate(&core.Wallet{})
+	err := db.AutoMigrate(&models.Wallet{})
 	if err != nil {
 		return fmt.Errorf("failed to auto migrate Wallet model: %w", err)
 	}
@@ -21,14 +21,16 @@ func RunMigrations(db *gorm.DB) error {
 }
 
 func SeedInitialBalance(db *gorm.DB) error {
+	ClearTables(db)
+
 	log.Println("Seeding initial wallet balance...")
 
-	initialWallet := core.Wallet{
+	initialWallet := models.Wallet{
 		Address: "0x0000000000000000000000000000000000000000",
 		Balance: 1000000,
 	}
 
-	result := db.FirstOrCreate(&initialWallet, core.Wallet{Address: initialWallet.Address})
+	result := db.FirstOrCreate(&initialWallet, models.Wallet{Address: initialWallet.Address})
 
 	if result.Error != nil {
 		return fmt.Errorf("failed to seed initial wallet: %w", result.Error)

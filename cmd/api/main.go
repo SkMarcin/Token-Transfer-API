@@ -37,13 +37,9 @@ func main() {
 		log.Fatalf("ERROR: Migration failed: %v", err)
 	}
 
-	if err := database.SeedInitialBalance(db); err != nil {
-		log.Fatalf("ERROR: Seeding failed: %v", err)
-	}
-
 	walletService := core.NewWalletService(db)
 
-	srv := handler.NewDefaultServer(graph.NewExecutableSchema(
+	srv := handler.New(graph.NewExecutableSchema(
 		graph.Config{
 			Resolvers: &graph.Resolver{
 				WalletService: walletService,
@@ -51,9 +47,7 @@ func main() {
 		},
 	))
 
-	srv.AddTransport(transport.Options{})
 	srv.AddTransport(transport.POST{})
-
 	srv.Use(extension.Introspection{})
 
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))

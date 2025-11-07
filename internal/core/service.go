@@ -3,16 +3,15 @@ package core
 import (
 	"errors"
 	"fmt"
-	"sync"
+	"sort"
 
+	"github.com/SkMarcin/Token-Transfer-API/internal/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 var (
 	ErrInsufficientBalance = errors.New("insufficient balance")
-	TestBarrier            *sync.WaitGroup
-	TestRelease            chan struct{}
 )
 
 type WalletService struct {
@@ -23,8 +22,8 @@ func NewWalletService(db *gorm.DB) *WalletService {
 	return &WalletService{DB: db}
 }
 
-func (s *WalletService) GetWalletByAddress(address string) (*Wallet, error) {
-	var wallet Wallet
+func (s *WalletService) GetWalletByAddress(address string) (*models.Wallet, error) {
+	var wallet models.Wallet
 	result := s.DB.Where("address = ?", address).First(&wallet)
 
 	if result.Error != nil {
@@ -51,21 +50,31 @@ func (s *WalletService) Transfer(fromAddr string, toAddr string, amount int64) (
 		return 0, errors.New("cannot transfer tokens to the same address")
 	}
 
+	// Sort addresses
 	var finalSenderBalance int64
+	addresses := []string{fromAddr, toAddr}
+	sort.Strings(addresses)
+
+	lock1 := addresses[0]
+	lock2 := addresses[1]
 
 	// Start a transaction
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 
-		// Lock sender row, retrieve balance
-		var sender Wallet
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("address = ?", fromAddr).
-			First(&sender).Error
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("sender wallet not found: %s", fromAddr)
-			}
-			return fmt.Errorf("error locking sender wallet: %w", err)
+		var (
+			wallet1 models.Wallet
+			wallet2 models.Wallet
+			sender  models.Wallet
+		)
+
+		// Lock rows in sorted order
+		tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("address = ?", lock1).First(&wallet1)
+		tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("address = ?", lock2).First(&wallet2)
+
+		if fromAddr == wallet1.Address {
+			sender = wallet1
+		} else {
+			sender = wallet2
 		}
 
 		// Balance check
@@ -74,14 +83,14 @@ func (s *WalletService) Transfer(fromAddr string, toAddr string, amount int64) (
 		}
 
 		// Debit sender
-		err = tx.Model(&Wallet{}).Where("address = ?", fromAddr).
+		err := tx.Model(&models.Wallet{}).Where("address = ?", fromAddr).
 			Update("balance", gorm.Expr("balance - ?", amount)).Error
 		if err != nil {
 			return fmt.Errorf("failed to debit sender: %w", err)
 		}
 
 		// Credit recipient
-		recipient := Wallet{
+		recipient := models.Wallet{
 			Address: toAddr,
 			Balance: amount,
 		}
@@ -98,7 +107,7 @@ func (s *WalletService) Transfer(fromAddr string, toAddr string, amount int64) (
 		}
 
 		// Get the new sender balance
-		var updatedSender Wallet
+		var updatedSender models.Wallet
 		err = tx.Where("address = ?", fromAddr).First(&updatedSender).Error
 		if err != nil {
 			return fmt.Errorf("failed to retrieve updated balance: %w", err)

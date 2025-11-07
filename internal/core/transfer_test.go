@@ -1,37 +1,37 @@
-package core_test
+package core
 
 import (
 	"testing"
 
-	"github.com/SkMarcin/Token-Transfer-API/internal/core"
 	"github.com/SkMarcin/Token-Transfer-API/internal/database"
 	"github.com/stretchr/testify/assert"
 )
 
 var (
-	InitialSenderAddress = "0x0000000000000000000000000000000000000000"
-	RecipientAddress     = "0x1111111111111111111111111111111111111111"
+	InitialSenderAddress   = "0x0000000000000000000000000000000000000000"
+	RecipientAddress       = "0x1111111111111111111111111111111111111111"
+	SecondarySenderAddress = "0x2222222222222222222222222222222222222222"
 )
 
-func SetupWalletService(t *testing.T) *core.WalletService {
+func SetupWalletService(t *testing.T) *WalletService {
 	db := database.SetupTestDB(t)
 	database.ClearTables(db)
-	if err := database.SeedInitialBalance(db); err != nil {
+	if err := database.SeedTestWallets(db); err != nil {
 		t.Fatalf("Failed to re-seed data: %v", err)
 	}
-	return core.NewWalletService(db)
+	return NewWalletService(db)
 }
 
 func TestTransferSuccess(t *testing.T) {
 	svc := SetupWalletService(t)
 	a := assert.New(t)
 
-	const transferAmount = 1000
+	const transferAmount = 1
 	newBalance, err := svc.Transfer(InitialSenderAddress, RecipientAddress, transferAmount)
 
 	a.NoError(err)
 
-	expectedBalance := int64(1000000 - transferAmount)
+	expectedBalance := int64(10 - transferAmount)
 	a.Equal(expectedBalance, newBalance, "Sender's balance should be correctly debited")
 
 	recipient, err := svc.GetWalletByAddress(RecipientAddress)
@@ -44,20 +44,20 @@ func TestSequentialTransfers(t *testing.T) {
 	svc := SetupWalletService(t)
 	a := assert.New(t)
 
-	const firstAmount = 1000
-	const secondAmount = 500
+	const firstAmount = 5
+	const secondAmount = 3
 
 	_, err := svc.Transfer(InitialSenderAddress, RecipientAddress, firstAmount)
 	a.NoError(err, "First transfer should succeed")
 
 	sender1, _ := svc.GetWalletByAddress(InitialSenderAddress)
-	a.Equal(int64(1000000-firstAmount), sender1.Balance, "Sender balance after first transfer is incorrect")
+	a.Equal(int64(10-firstAmount), sender1.Balance, "Sender balance after first transfer is incorrect")
 
 	// Transfer to existing wallet
 	newBalance, err := svc.Transfer(InitialSenderAddress, RecipientAddress, secondAmount)
 	a.NoError(err, "Second transfer should succeed")
 
-	expectedFinalSenderBalance := int64(1000000 - firstAmount - secondAmount)
+	expectedFinalSenderBalance := int64(10 - firstAmount - secondAmount)
 	a.Equal(expectedFinalSenderBalance, newBalance, "Sender's final balance should be correct after both transfers")
 
 	recipient, err := svc.GetWalletByAddress(RecipientAddress)
@@ -71,7 +71,7 @@ func TestTransferInsufficientBalance(t *testing.T) {
 	svc := SetupWalletService(t)
 	a := assert.New(t)
 
-	const transferAmount = 1000001
+	const transferAmount = 11
 
 	// Attempt transfer
 	newBalance, err := svc.Transfer(InitialSenderAddress, RecipientAddress, transferAmount)
@@ -82,5 +82,5 @@ func TestTransferInsufficientBalance(t *testing.T) {
 
 	sender, err := svc.GetWalletByAddress(InitialSenderAddress)
 	a.NoError(err)
-	a.Equal(int64(1000000), sender.Balance, "Sender's balance must be unchanged after failed transfer")
+	a.Equal(int64(10), sender.Balance, "Sender's balance must be unchanged after failed transfer")
 }

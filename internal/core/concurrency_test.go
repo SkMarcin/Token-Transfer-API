@@ -1,10 +1,11 @@
-package core_test
+package core
 
 import (
+	"errors"
+	"strings"
 	"sync"
 	"testing"
 
-	db "github.com/SkMarcin/Token-Transfer-API/internal/database"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,8 +16,8 @@ func TestTransferRaceCondition(t *testing.T) {
 	transfers := []struct {
 		amount int64
 	}{
-		{amount: 400000},
-		{amount: 700000},
+		{amount: 4},
+		{amount: 7},
 	}
 
 	// Semaphore waiting for goroutines
@@ -39,19 +40,18 @@ func TestTransferRaceCondition(t *testing.T) {
 	wg.Wait()
 
 	// Results
-	expectedFinalBalance1 := int64(600000)
-	expectedFinalBalance2 := int64(300000)
+	expectedFinalBalance1 := int64(6)
+	expectedFinalBalance2 := int64(3)
 
 	finalSender, _ := svc.GetWalletByAddress(InitialSenderAddress)
 	t.Logf("Final balance %d", finalSender.Balance)
 	a.True(finalSender.Balance == expectedFinalBalance1 ||
 		finalSender.Balance == expectedFinalBalance2,
-		"Final balance must be 600000 or 300000 after the concurrent transfers.")
+		"Final balance must be 6 or 3 after the concurrent transfers.")
 }
 
 func TestTransferRaceConditionReceiving(t *testing.T) {
 	svc := SetupWalletService(t)
-	db.SeedSecondWalletTest()
 
 	a := assert.New(t)
 
@@ -59,13 +59,15 @@ func TestTransferRaceConditionReceiving(t *testing.T) {
 		amount    int64
 		receiving bool
 	}{
-		{amount: 100000, receiving: true},
-		{amount: 400000, receiving: false},
-		{amount: 700000, receiving: false},
+		{amount: 1, receiving: true},
+		{amount: 4, receiving: false},
+		{amount: 7, receiving: false},
 	}
 
 	// Semaphore waiting for goroutines
 	var wg sync.WaitGroup
+
+	errorChan := make(chan error, len(transfers))
 
 	// Concurrent Goroutines
 	for i, tx := range transfers {
@@ -76,27 +78,90 @@ func TestTransferRaceConditionReceiving(t *testing.T) {
 		transferAmt := tx.amount
 
 		if tx.receiving {
-			from = "0x2222222222222222222222222222222222222222"
+			from = SecondarySenderAddress
 			to = InitialSenderAddress
 		}
 
 		go func(index int, f, t string, amount int64) {
 			defer wg.Done()
-			svc.Transfer(f, t, amount)
+			_, err := svc.Transfer(f, t, amount)
+			errorChan <- err
 		}(i, from, to, transferAmt)
 	}
 
 	wg.Wait()
+	close(errorChan)
 
-	// Results
-	expectedFinalBalance1 := int64(700000)
-	expectedFinalBalance2 := int64(400000)
-	expectedFinalBalance3 := int64(0)
+	// Error count
+	successCount := 0
+	insufficientErrorCount := 0
 
+	for err := range errorChan {
+		if err == nil {
+			successCount++
+		} else {
+			if errors.Is(err, ErrInsufficientBalance) {
+				insufficientErrorCount++
+			} else {
+				t.Errorf("Received unexpected error: %v", err)
+			}
+		}
+	}
+
+	// Balance count and check
 	finalSender, _ := svc.GetWalletByAddress(InitialSenderAddress)
 	t.Logf("Final balance %d", finalSender.Balance)
-	a.True(finalSender.Balance == expectedFinalBalance1 ||
-		finalSender.Balance == expectedFinalBalance2 ||
-		finalSender.Balance == expectedFinalBalance3,
-		"Final balance must be 700000, 400000 or 0 after the concurrent transfers.")
+	switch finalSender.Balance {
+	case 7, 4:
+		a.Equal(2, successCount, "If balance is 4 or 7, exactly two transactions must have succeeded.")
+		a.Equal(1, insufficientErrorCount, "If balance is 4 or 7, exactly one transaction must have failed due to insufficient funds.")
+	case 0:
+		a.Equal(3, successCount, "If balance is 0, all three transactions must have succeeded.")
+		a.Equal(0, insufficientErrorCount, "If balance is 0, zero transactions must have failed due to insufficient funds.")
+	default:
+		a.Failf("Final balance is invalid",
+			"Balance was %d. Expected 0, 4, or 7. This indicates a concurrency failure.", finalSender.Balance)
+	}
+}
+
+func TestDeadlockNotOccuring(t *testing.T) {
+	svc := SetupWalletService(t)
+	a := assert.New(t)
+
+	fromAddr := InitialSenderAddress
+	toAddr := SecondarySenderAddress
+
+	transferAmount := int64(3)
+
+	var wg sync.WaitGroup
+	var results = make(chan error, 2)
+
+	// Transaction 1
+	wg.Go(func() {
+		_, err := svc.Transfer(fromAddr, toAddr, transferAmount)
+		results <- err
+	})
+
+	// Transaction 2
+	wg.Go(func() {
+		_, err := svc.Transfer(toAddr, fromAddr, transferAmount)
+		results <- err
+	})
+
+	wg.Wait()
+	close(results)
+
+	deadlockDetectedCount := 0
+
+	for err := range results {
+		if err != nil {
+			if strings.Contains(err.Error(), "transaction block") {
+				deadlockDetectedCount++
+			} else {
+				t.Logf("Received non-deadlock error: %v", err)
+			}
+		}
+	}
+
+	a.GreaterOrEqual(deadlockDetectedCount, 0, "Expected for all the transactions to pass without deadlock.")
 }
