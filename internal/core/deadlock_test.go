@@ -253,20 +253,21 @@ func TestDeadlockWithDelay(t *testing.T) {
 	fromAddr := InitialSenderAddress
 	toAddr := SecondarySenderAddress
 
-	transferAmount := int64(3)
+	transferAmount1 := int64(3)
+	transferAmount2 := int64(5)
 
 	var wg sync.WaitGroup
 	var results = make(chan error, 2)
 
 	// Transaction 1
 	wg.Go(func() {
-		_, err := svc.FixedDeadlockTransfer(fromAddr, toAddr, transferAmount)
+		_, err := svc.FixedDeadlockTransfer(fromAddr, toAddr, transferAmount1)
 		results <- err
 	})
 
 	// Transaction 2
 	wg.Go(func() {
-		_, err := svc.FixedDeadlockTransfer(toAddr, fromAddr, transferAmount)
+		_, err := svc.FixedDeadlockTransfer(toAddr, fromAddr, transferAmount2)
 		results <- err
 	})
 
@@ -286,4 +287,10 @@ func TestDeadlockWithDelay(t *testing.T) {
 	}
 
 	a.GreaterOrEqual(deadlockDetectedCount, 0, "Expected for all the transactions to pass without deadlock.")
+
+	finalSender, _ := svc.GetWalletByAddress(InitialSenderAddress)
+	finalRecepient, _ := svc.GetWalletByAddress(SecondarySenderAddress)
+
+	a.Equal(int64(12), finalSender.Balance)
+	a.Equal(int64(8), finalRecepient.Balance)
 }
